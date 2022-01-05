@@ -1,3 +1,23 @@
+/*
+
+Created by Sampo Kyyrö 5.1.2022.
+Yeah, I know. It's not so nice but at least it works.
+If I were to do this again I would change it so that there is only one loop through all slides.
+Currently the script has to loop twice: once for indexes and counts and once when adding data to TOCs.
+
+!!!!!!!!!!!!!!!
+The script should be able to handle most of changes but the most volatile part is the textbox index indicating
+where is the textbox containing TOC data in the main TOC and cover pages. Currently the index is 1 in both
+but it might change if templates are changed.
+
+This information is used in two functions
+1. addTitleToPage
+2. getTOCSlides
+Please update the targetTextBoxID value if the textbox index changes in either of these slides.
+!!!!!!!!!!!!!!!
+
+*/
+
 function createTOC() {
   const currentPresentation = SlidesApp.getActivePresentation();
   const currentPresentationSlides = currentPresentation.getSlides();
@@ -9,6 +29,7 @@ function createTOC() {
   addTOC(currentPresentationSlides, TOCSlideIDs);
 }
 
+// Generates table of contents for both the main TOC page and cover pages.
 function addTOC(currentPresentationSlides, TOCSlideIDs) {
   console.log("<==== CREATING TOC ====>");
   const mainTOCSlide = currentPresentationSlides[TOCSlideIDs[0]];
@@ -38,18 +59,20 @@ function addTOC(currentPresentationSlides, TOCSlideIDs) {
   }
 }
 
+// Adds a single page title to a toc page.
+// Arguments: slide of the page containing the title | slide containing the toc | is this a coverpage or main toc
 function addTitleToPage(slide, targetPage, type) {
     let slideTitle = getTitle(slide);
-    let targetTextBoxID = 1;
     // This allows setting different index for cover and title content textboxes.
     // Currently they are both 1.
+    let targetTextBoxID = 1;
     if (type === "COVER") {
       targetTextBoxID = 1;
     }
 
     if (slideTitle != "" && slideTitle != null) {
       slideTitle = slideTitle.trim();
-      const addedTxt = targetPage.getShapes()[targetTextBoxID].getText().appendText("\n" + slideTitle);
+      const addedTxt = targetPage.getShapes()[targetTextBoxID].getText().appendText(slideTitle + "\n");
       // Style section headings differently than page headings
       if (type === "MAIN") {
         addedTxt.getTextStyle().setBold(true);
@@ -65,19 +88,24 @@ function addTitleToPage(slide, targetPage, type) {
     }
 }
 
+// Returns the title of a given slide or null if no title can be found.
 function getTitle(slide) {
   const shapes = slide.getShapes();
+  let found = false;
   for (shapeid in shapes) {
     if (shapes[shapeid].getPlaceholderType() == "TITLE") {
+      found = true;
       return shapes[shapeid].getText().asString().trim();
     }
-    else {
-      //console.log("[ERROR] TITLE textbox element not found!");
-    }
+  }
+  if (!found) {
+    console.log("[ERROR] TITLE textbox element not found!");
   }
   return null;
 }
 
+// Sets the title of a given slide.
+// Arguments: slide where title will be set to | contents of the title | does the function clear all existing text or not | is this a TITLE or SUBTITLE
 function setTitle(slide, newTitle, clear, type) {
   const shapes = slide.getShapes();
   let found = false;
@@ -96,19 +124,32 @@ function setTitle(slide, newTitle, clear, type) {
   }
 }
 
+// Returns a list of ids of all slides with the layout "Sisällysluettelo" or "Väliotsikko"
+// Also clears existing data in all TOC pages
 function getTOCSlides(allSlides) {
   let TOCSlides = [];
   for (slideid in allSlides) {
     const layoutName = allSlides[slideid].getLayout().getLayoutName();
+    
+    // Implemented support for different textboxes to be cleared if this is a cover page or the main toc.
+    // Currently both textboxes are at index 1.
+    let targetTextBoxID = 1;
+    if(layoutName == "Sisällysluettelo") {
+      targetTextBoxID = 1;
+    }
+
     if (layoutName == "Sisällysluettelo" || layoutName == "Väliotsikko") {
       TOCSlides.push(parseInt(slideid));
       // Clear all TOC and cover pages from any previous content
-      allSlides[slideid].getShapes()[1].getText().clear();
+      allSlides[slideid].getShapes()[targetTextBoxID].getText().clear();
     }
   }
   return TOCSlides;
 }
 
+// Creates numbering in the beginning of the slides in the following format: x.y. where x is the main section and y is the slide topic.
+// If there are slides with the same title next to each other the script adds count in the end of the slide titles in the following format: x/y.
+// where x is the number of the current slide and y amount of all slides in the set.
 function addIndexNumbers(allSlides, TOCSlideIDs, mainCount, subCount) {
   console.log("<==== INDEXING ====>");
   let prevSlidesWithSameTitle = [];
@@ -179,6 +220,7 @@ function addIndexNumbers(allSlides, TOCSlideIDs, mainCount, subCount) {
   }
 }
 
+// Clears existing numbering from the beginning of the page title.
 function removeIndex(title) {
   if (title != null) {
     const numIndex = title.indexOf(". ");
@@ -194,6 +236,7 @@ function removeIndex(title) {
   }
 }
 
+// Clears existing counts from the end of titles of repeated slides.
 function removeCount(title) {
   if (title != null) {
     const numIndex = title.indexOf("/");
